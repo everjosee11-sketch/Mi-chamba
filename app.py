@@ -109,3 +109,26 @@ st.sidebar.image("https://via.placeholder.com/150x50.png?text=J%26J+C.A.", use_c
 st.sidebar.write("Usuario: Administrador")
 if st.sidebar.button("Cerrar Sesión"):
     st.write("Saliendo...")
+    import streamlit as st
+import pandas as pd
+
+st.set_page_config(page_title="J&J C.A. Ops", layout="wide")
+
+# Estilo Neón Básico
+st.markdown("<style>main {background-color: #000; color: #00f2ff;}</style>", unsafe_allow_html=True)
+
+st.title("⚡ J&J C.A. | Control Interno")
+
+col1, col2 = st.columns(2)
+with col1:
+    st.metric("Personal Activo", "42", "3")
+with col2:
+    st.metric("Equipos en Campo", "12", "-1")
+
+st.subheader("📊 Gráfico de Actividad")
+# Gráfico nativo (no necesita plotly)
+data = pd.DataFrame({"Proyecto": ["A", "B", "C"], "Horas": [10, 20, 30]})
+st.bar_chart(data.set_index("Proyecto"))
+
+st.success("App operativa para J&J C.A.")
+

@@ -1,268 +1,189 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Plus, X, LayoutDashboard, Users, 
+  FileText, Wallet, CheckCircle2, AlertCircle, 
+  ChevronRight, HardHat, TrendingUp 
+} from 'lucide-react';
 
-import streamlit as st
-import sqlite3
-import pandas as pd
-from pathlib import Path
-from datetime import datetime
+// --- COMPONENTE DE ENTRADA DE DATOS (FORMULARIO FUTURISTA) ---
+const ModalForm = ({ isOpen, onClose, onAdd }) => {
+  const [formData, setFormData] = useState({
+    nombre: '', presupuesto: '', personal: '', art: 'Al día', avance: 0
+  });
 
-# ==========================================
-# CONFIGURACIÓN INICIAL J&J C.A.
-# ==========================================
-EMPRESA = "J&J C.A."
-RUTA_BD = "jyj_erp.db"
-RUTA_DATOS = Path("data_jyj")
+  if (!isOpen) return null;
 
-st.set_page_config(page_title=f"ERP {EMPRESA}", layout="wide", page_icon="🛢️")
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-[#0d1117] border border-cyan-500/30 p-8 rounded-3xl w-full max-w-md shadow-[0_0_40px_rgba(34,211,238,0.15)]"
+      >
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-cyan-400 font-light tracking-[0.2em] uppercase">Nuevo Registro</h2>
+          <button onClick={onClose} className="text-white/40 hover:text-white"><X size={20}/></button>
+        </div>
 
-# ==========================================
-# MOTOR DE BASE DE DATOS Y ARCHIVOS
-# ==========================================
+        <div className="space-y-4">
+          <div>
+            <label className="text-[10px] text-white/40 uppercase ml-2">Nombre del Proyecto</label>
+            <input 
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 mt-1 focus:border-cyan-500 outline-none transition-all"
+              onChange={(e) => setFormData({...formData, nombre: e.target.value})}
+              placeholder="Ej. Torre Central"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[10px] text-white/40 uppercase ml-2">Presupuesto ($)</label>
+              <input 
+                type="number"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 mt-1 focus:border-cyan-500 outline-none transition-all"
+                onChange={(e) => setFormData({...formData, presupuesto: e.target.value})}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-white/40 uppercase ml-2">Personal</label>
+              <input 
+                type="number"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 mt-1 focus:border-cyan-500 outline-none transition-all"
+                onChange={(e) => setFormData({...formData, personal: e.target.value})}
+              />
+            </div>
+          </div>
+          <button 
+            onClick={() => { onAdd(formData); onClose(); }}
+            className="w-full bg-cyan-600 hover:bg-cyan-500 text-black font-bold py-4 rounded-xl mt-4 transition-all uppercase tracking-widest text-xs"
+          >
+            Sincronizar Datos
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
 
-def init_db():
-    """Inicializa el sistema, crea BD y Carpetas."""
-    # Crear Carpetas Físicas
-    (RUTA_DATOS / "PROYECTOS").mkdir(parents=True, exist_ok=True)
-    (RUTA_DATOS / "SOLVENCIAS").mkdir(parents=True, exist_ok=True)
-    (RUTA_DATOS / "FINANZAS").mkdir(parents=True, exist_ok=True)
-    
-    conn = sqlite3.connect(RUTA_BD)
-    c = conn.cursor()
-    
-    # Tabla Proyectos
-    c.execute('''CREATE TABLE IF NOT EXISTS proyectos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        codigo TEXT,
-        filial TEXT,
-        nombre TEXT,
-        fecha_inicio TEXT,
-        estado TEXT
-    )''')
-    
-    # Tabla Finanzas
-    c.execute('''CREATE TABLE IF NOT EXISTS finanzas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tipo TEXT, 
-        monto REAL,
-        descripcion TEXT,
-        fecha TEXT
-    )''')
-    
-    # Tabla Archivos
-    c.execute('''CREATE TABLE IF NOT EXISTS archivos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nombre TEXT,
-        ruta TEXT,
-        categoria TEXT,
-        subcategoria TEXT,
-        fecha_subida TEXT,
-        notas TEXT
-    )''')
-    
-    conn.commit()
-    conn.close()
+// --- APLICACIÓN PRINCIPAL ---
+export default function CoreApp() {
+  const [proyectos, setProyectos] = useState([
+    { id: 1, nombre: "Mantenimiento ART-01", presupuesto: 45000, personal: 8, art: "Vigente", avance: 85 },
+    { id: 2, nombre: "Infraestructura Red", presupuesto: 120000, personal: 24, art: "Pendiente", avance: 30 }
+  ]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [totalBudget, setTotalBudget] = useState(0);
 
-# Ejecutar inicio
-init_db()
+  // Cálculo automático del motor
+  useEffect(() => {
+    const total = proyectos.reduce((acc, curr) => acc + Number(curr.presupuesto), 0);
+    setTotalBudget(total);
+  }, [proyectos]);
 
-def get_conn():
-    conn = sqlite3.connect(RUTA_BD)
-    conn.row_factory = sqlite3.Row
-    return conn
+  const agregarProyecto = (nuevo) => {
+    setProyectos([...proyectos, { ...nuevo, id: proyectos.length + 1 }]);
+  };
 
-def guardar_archivo(archivo, carpeta_categoria, subcat=""):
-    """Guarda el archivo en disco y lo registra en la BD."""
-    if archivo is None: return None
-    
-    # Crear nombre único con timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    nombre_archivo = f"{timestamp}_{archivo.name}"
-    ruta_final = RUTA_DATOS / carpeta_categoria / nombre_archivo
-    
-    with open(ruta_final, "wb") as f:
-        f.write(archivo.getbuffer())
-        
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute("INSERT INTO archivos (nombre, ruta, categoria, subcategoria, fecha_subida, notas) VALUES (?, ?, ?, ?, ?, ?)",
-              (archivo.name, str(ruta_final), carpeta_categoria, subcat, str(datetime.now()), ""))
-    conn.commit()
-    conn.close()
-    return str(ruta_final)
+  return (
+    <div className="min-h-screen bg-[#02040a] text-slate-300 font-sans selection:bg-cyan-500/30">
+      {/* Fondo Animado */}
+      <div className="fixed inset-0 overflow-hidden -z-10">
+        <div className="absolute top-[-10%] right-[-5%] w-96 h-96 bg-cyan-600/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] left-[-5%] w-96 h-96 bg-purple-600/10 rounded-full blur-[120px]" />
+      </div>
 
-# ==========================================
-# INTERFAZ DE USUARIO
-# ==========================================
+      <div className="max-w-7xl mx-auto p-6 lg:p-12">
+        {/* Header Superior */}
+        <header className="flex justify-between items-start mb-16">
+          <div>
+            <h1 className="text-5xl font-thin tracking-tighter text-white italic">CORE<span className="text-cyan-500 font-bold not-italic">.</span></h1>
+            <p className="text-[10px] tracking-[0.5em] text-cyan-500/50 uppercase mt-2">Enterprise Control System</p>
+          </div>
+          <div className="text-right">
+            <div className="text-2xl font-mono text-white">${totalBudget.toLocaleString()}</div>
+            <div className="text-[10px] text-white/30 uppercase tracking-widest">Capital en Gestión</div>
+          </div>
+        </header>
 
-st.sidebar.title(f"🛢️ {EMPRESA}")
-st.sidebar.markdown("Contratista PDVSA")
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          {/* Navegación Lateral */}
+          <aside className="lg:col-span-3 space-y-2">
+            {[
+              { label: 'Proyectos', icon: LayoutDashboard, active: true },
+              { label: 'Personal / ART', icon: HardHat, active: false },
+              { label: 'Presupuestos', icon: Wallet, active: false },
+              { label: 'Archivos', icon: FileText, active: false }
+            ].map((item, i) => (
+              <div 
+                key={i}
+                className={`flex items-center gap-4 p-4 rounded-2xl cursor-pointer transition-all ${item.active ? 'bg-white/10 border border-white/10 text-white' : 'hover:bg-white/5 text-white/40'}`}
+              >
+                <item.icon size={18} className={item.active ? 'text-cyan-400' : ''}/>
+                <span className="text-xs uppercase tracking-[0.2em]">{item.label}</span>
+              </div>
+            ))}
+          </aside>
 
-# Menú
-menu = ["🏠 Dashboard", "🏗️ Proyectos", "📜 Solvencias", "💰 Finanzas", "📂 Archivos Global"]
-opcion = st.sidebar.radio("Menú", menu)
+          {/* Panel Central */}
+          <main className="lg:col-span-9 space-y-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-light uppercase tracking-widest">Monitor de Operaciones</h2>
+              <button 
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-2 px-5 py-2 bg-cyan-500/10 border border-cyan-500/50 rounded-full text-cyan-400 text-xs hover:bg-cyan-500 hover:text-black transition-all"
+              >
+                <Plus size={14}/> Nuevo Proyecto
+              </button>
+            </div>
 
-# --- DASHBOARD ---
-if opcion == "🏠 Dashboard":
-    st.title(f"Panel de Control - {EMPRESA}")
-    
-    conn = get_conn()
-    
-    # Métricas
-    proyectos = len(conn.execute("SELECT * FROM proyectos").fetchall())
-    archivos = len(conn.execute("SELECT * FROM archivos").fetchall())
-    balance_row = conn.execute("SELECT SUM(monto) FROM finanzas").fetchone()
-    balance = balance_row[0] if balance_row[0] else 0
-    
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Proyectos Activos", proyectos)
-    col2.metric("Archivos Digitales", archivos)
-    col3.metric("Balance Total", f"${balance:,.2f}")
-    
-    st.info(f"Base de datos: `{RUTA_BD}` | Carpeta de Datos: `{RUTA_DATOS.resolve()}`")
+            <div className="grid gap-4">
+              <AnimatePresence>
+                {proyectos.map((p) => (
+                  <motion.div 
+                    key={p.id}
+                    layout
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="group bg-white/5 border border-white/5 p-6 rounded-3xl flex flex-wrap items-center justify-between gap-6 hover:bg-white/[0.08] hover:border-cyan-500/30 transition-all"
+                  >
+                    <div className="flex items-center gap-6">
+                      <div className={`p-3 rounded-2xl bg-black/40 border ${p.avance === 100 ? 'border-emerald-500/50' : 'border-white/10'}`}>
+                        {p.avance === 100 ? <CheckCircle2 className="text-emerald-500" /> : <TrendingUp className="text-cyan-400" />}
+                      </div>
+                      <div>
+                        <h3 className="text-white font-medium">{p.nombre}</h3>
+                        <p className="text-[10px] text-white/30 uppercase tracking-widest">Operarios: {p.personal} | ART: {p.art}</p>
+                      </div>
+                    </div>
 
-# --- PROYECTOS ---
-elif opcion == "🏗️ Proyectos":
-    st.header("Gestión de Contratos PDVSA")
-    
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        with st.form("nuevo_proyecto"):
-            st.subheader("Nuevo Contrato")
-            codigo = st.text_input("Código Contrato (Ej: 2400555)")
-            filial = st.selectbox("Filial", ["Bariven", "Petrocedeño", "CVP", "PDVSA Occidente"])
-            nombre = st.text_input("Descripción")
-            fecha = st.date_input("Fecha Inicio")
-            
-            if st.form_submit_button("Crear Proyecto"):
-                conn = get_conn()
-                conn.execute("INSERT INTO proyectos (codigo, filial, nombre, fecha_inicio, estado) VALUES (?, ?, ?, ?, 'Activo')",
-                             (codigo, filial, nombre, str(fecha)))
-                conn.commit()
-                conn.close()
-                st.success("Proyecto Creado")
-                st.rerun()
-                
-    with col2:
-        conn = get_conn()
-        proyectos = conn.execute("SELECT * FROM proyectos ORDER BY id DESC").fetchall()
-        
-        if proyectos:
-            for p in proyectos:
-                with st.expander(f"🏗️ {p['codigo']} - {p['filial']}"):
-                    st.write(f"**Nombre:** {p['nombre']}")
-                    st.write(f"**Estado:** {p['estado']}")
-                    
-                    # Subir archivo al proyecto
-                    archivo_p = st.file_uploader("Subir documento a este contrato", key=f"up_{p['id']}")
-                    
-                    if archivo_p:
-                        subcat_proyecto = f"{p['codigo']}_{p['filial']}"
-                        guardar_archivo(archivo_p, "PROYECTOS", subcat_proyecto)
-                        st.success("Archivo guardado")
-                        st.rerun()
-                    
-                    # Ver archivos del proyecto
-                    archivos_p = conn.execute("SELECT * FROM archivos WHERE categoria='PROYECTOS' AND subcategoria=?", 
-                                             (f"{p['codigo']}_{p['filial']}",)).fetchall()
-                    if archivos_p:
-                        st.write("Documentos:")
-                        for a in archivos_p:
-                            st.caption(f"📄 {a['nombre']}")
-        else:
-            st.warning("No hay proyectos creados.")
+                    <div className="flex-1 max-w-[200px] hidden md:block px-8">
+                      <div className="h-[2px] w-full bg-white/10 rounded-full overflow-hidden">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${p.avance}%` }}
+                          className="h-full bg-gradient-to-r from-cyan-500 to-blue-500"
+                        />
+                      </div>
+                    </div>
 
-# --- SOLVENCIAS ---
-elif opcion == "📜 Solvencias":
-    st.header("Solvencias Especiales PDVSA")
-    
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        with st.form("solvencia"):
-            st.subheader("Subir Solvencia")
-            tipo = st.selectbox("Tipo", ["COFACE", "LUT", "Solvencia Laboral", "IVA", "ISLR"])
-            archivo = st.file_uploader("Archivo PDF/Img")
-            
-            if st.form_submit_button("Guardar"):
-                if archivo:
-                    guardar_archivo(archivo, "SOLVENCIAS", tipo)
-                    conn = get_conn()
-                    conn.execute("UPDATE archivos SET notas='Solvencia subida recientemente' WHERE id=(SELECT MAX(id) FROM archivos)")
-                    conn.commit()
-                    conn.close()
-                    st.success("Guardado")
-                    st.rerun()
-                else:
-                    st.error("Por favor selecciona un archivo.")
-    
-    with col2:
-        conn = get_conn()
-        docs = conn.execute("SELECT * FROM archivos WHERE categoria='SOLVENCIAS' ORDER BY id DESC").fetchall()
-        if docs:
-            for d in docs:
-                with st.expander(f"📜 {d['subcategoria']} - {d['nombre']}"):
-                    st.write(f"Subido: {d['fecha_subida']}")
-                    if Path(d['ruta']).exists():
-                        with open(d['ruta'], "rb") as f:
-                            st.download_button("Descargar", f, d['nombre'])
-                    else:
-                        st.error("Archivo no encontrado en disco.")
+                    <div className="text-right">
+                      <span className="text-sm font-mono text-white">${Number(p.presupuesto).toLocaleString()}</span>
+                      <div className="text-[10px] text-cyan-400/50 uppercase tracking-tighter mt-1">{p.avance}% Completado</div>
+                    </div>
+                    <ChevronRight className="text-white/10 group-hover:text-cyan-500" size={20}/>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          </main>
+        </div>
+      </div>
 
-# --- FINANZAS ---
-elif opcion == "💰 Finanzas":
-    st.header("Balances y Movimientos")
-    
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        with st.form("movimiento"):
-            st.subheader("Registrar Movimiento")
-            tipo = st.selectbox("Tipo", ["Ingreso", "Egreso"])
-            monto = st.number_input("Monto", min_value=0.0, format="%.2f")
-            desc = st.text_input("Descripción")
-            
-            if st.form_submit_button("Registrar"):
-                conn = get_conn()
-                conn.execute("INSERT INTO finanzas (tipo, monto, descripcion, fecha) VALUES (?, ?, ?, ?)",
-                             (tipo, monto, desc, str(datetime.now())))
-                conn.commit()
-                conn.close()
-                st.success("Registrado")
-                st.rerun()
-    
-    with col2:
-        conn = get_conn()
-        movs = conn.execute("SELECT * FROM finanzas ORDER BY id DESC").fetchall()
-        if movs:
-            df = pd.DataFrame(movs)
-            st.dataframe(df, use_container_width=True)
-        else:
-            st.info("Sin movimientos")
-
-# --- ARCHIVOS GLOBAL ---
-elif opcion == "📂 Archivos Global":
-    st.header("Buscador y Gestión de Archivos")
-    
-    buscador = st.text_input("🔍 Buscar archivo por nombre o tipo...")
-    
-    conn = get_conn()
-    if buscador:
-        resultados = conn.execute("SELECT * FROM archivos WHERE nombre LIKE ? OR subcategoria LIKE ?", 
-                                 (f'%{buscador}%', f'%{buscador}%')).fetchall()
-    else:
-        resultados = conn.execute("SELECT * FROM archivos ORDER BY id DESC LIMIT 50").fetchall()
-        
-    if resultados:
-        for r in resultados:
-            with st.expander(f"📂 {r['categoria']}/{r['subcategoria']} -> 📄 {r['nombre']}"):
-                st.write(f"**Ruta:** `{r['ruta']}`")
-                st.write(f"**Fecha:** {r['fecha_subida']}")
-                if Path(r['ruta']).exists():
-                    with open(r['ruta'], "rb") as f:
-                        st.download_button("Descargar", f, r['nombre'])
-    else:
-        st.warning("No se encontraron archivos.")
-
-# Cerrar conexión al final del script
-conn = get_conn()
-conn.close()
+      <ModalForm 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onAdd={agregarProyecto}
+      />
+    </div>
+  );
+}

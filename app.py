@@ -1,85 +1,114 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime
 
-# Configuración de la página con estilo oscuro
-st.set_page_config(page_title="CORE Enterprise", layout="wide")
+# 1. ESTILO "COMMAND CENTER" (Futurista y Funcional)
+st.set_page_config(page_title="CORE COMMAND", layout="wide")
 
-# Inyectar CSS para la estética futurista y "Glassmorphism"
 st.markdown("""
     <style>
-    .main { background-color: #02040a; color: #e2e8f0; }
-    .stButton>button {
-        border: 1px solid #22d3ee;
-        background-color: rgba(34, 211, 238, 0.1);
-        color: #22d3ee;
-        border-radius: 20px;
-        width: 100%;
-        transition: 0.3s;
+    .stApp { background-color: #010409; color: #c9d1d9; }
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    .stTabs [data-baseweb="tab"] {
+        background-color: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 10px 10px 0 0;
+        padding: 10px 20px;
+        color: #58a6ff;
     }
-    .stButton>button:hover {
-        background-color: #22d3ee;
-        color: black;
-    }
-    .metric-card {
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
-        padding: 20px;
+    .stTabs [aria-selected="true"] { background-color: #1f6feb !important; color: white !important; }
+    .employee-card {
+        background: rgba(22, 27, 34, 0.8);
+        border: 1px solid #30363d;
         border-radius: 15px;
-        border-left: 4px solid #22d3ee;
+        padding: 20px;
+        margin-bottom: 15px;
+        border-left: 5px solid #238636;
     }
+    .neon-text { color: #58a6ff; text-shadow: 0 0 5px #58a6ff; font-family: monospace; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- MOTOR DE DATOS (Estado de la sesión) ---
-if 'proyectos' not in st.session_state:
-    st.session_state.proyectos = [
-        {"Nombre": "Torre Norte", "Presupuesto": 150000, "Personal": 12, "ART": "Al día", "Avance": 65},
-        {"Nombre": "Refinería Delta", "Presupuesto": 450000, "Personal": 45, "ART": "Pendiente", "Avance": 20}
-    ]
+# 2. MOTOR DE PERSISTENCIA (Base de Datos Temporal)
+if 'nomina' not in st.session_state:
+    st.session_state.nomina = {} # Formato: { 'Nombre': {datos, documentos} }
 
-# --- LÓGICA DE NEGOCIO ---
-df = pd.DataFrame(st.session_state.proyectos)
-total_presupuesto = df['Presupuesto'].sum()
+# 3. ENCABEZADO
+st.markdown('<h1 class="neon-text">CORE_SYSTEM_OS v4.0</h1>', unsafe_allow_html=True)
+st.caption(f"Terminal Activa: iPhone User | Fecha: {datetime.now().strftime('%d/%m/%Y')}")
 
-# --- INTERFAZ ---
-st.title("CORE.")
-st.caption("ENTERPRISE RESOURCE CONTROL v4.0")
+# 4. PANELES DE CONTROL
+tabs = st.tabs(["👥 PERSONAL & CARPETAS", "💰 NÓMINAS & COSTOS", "📁 CARGAR DOCUMENTOS"])
 
-# Fila de métricas
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.markdown(f'<div class="metric-card"><h5>Capital Total</h5><h2>${total_presupuesto:,}</h2></div>', unsafe_allow_html=True)
-with col2:
-    st.markdown(f'<div class="metric-card"><h5>Staff Activo</h5><h2>{df["Personal"].sum()}</h2></div>', unsafe_allow_html=True)
-with col3:
-    st.markdown(f'<div class="metric-card"><h5>Proyectos</h5><h2>{len(df)}</h2></div>', unsafe_allow_html=True)
+# --- PESTAÑA 1: GESTIÓN DE PERSONAS Y EXPEDIENTES ---
+with tabs[0]:
+    col_f1, col_f2 = st.columns([1, 2])
+    
+    with col_f1:
+        st.subheader("Crear Expediente")
+        with st.form("crear_persona"):
+            nombre = st.text_input("Nombre Completo")
+            cargo = st.text_input("Cargo / Función")
+            salario = st.number_input("Salario Base", min_value=0)
+            if st.form_submit_button("CREAR CARPETA"):
+                if nombre and nombre not in st.session_state.nomina:
+                    st.session_state.nomina[nombre] = {
+                        "cargo": cargo,
+                        "salario": salario,
+                        "docs": [],
+                        "fecha_ingreso": datetime.now().strftime("%Y-%m-%d")
+                    }
+                    st.success(f"Carpeta de {nombre} creada.")
+                    st.rerun()
 
-st.divider()
+    with col_f2:
+        st.subheader("Expedientes Activos")
+        for persona, datos in list(st.session_state.nomina.items()):
+            with st.container():
+                st.markdown(f"""
+                <div class="employee-card">
+                    <h3 style="margin:0;">📂 {persona}</h3>
+                    <p style="color:#8b949e; font-size:14px;">Cargo: {datos['cargo']} | Ingreso: {datos['fecha_ingreso']}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                c1, c2 = st.columns(2)
+                if c1.button(f"Ver Documentos ({len(datos['docs'])})", key=f"ver_{persona}"):
+                    st.write(f"Documentos en carpeta: {datos['docs']}")
+                
+                if c2.button(f"🗑️ ELIMINAR EXPEDIENTE", key=f"del_{persona}"):
+                    del st.session_state.nomina[persona]
+                    st.rerun()
 
-# Sección de Control
-tab1, tab2 = st.tabs(["📊 Monitor de Avance", "➕ Agregar Proyecto"])
-
-with tab1:
-    st.subheader("Estado de Proyectos")
-    for idx, p in df.iterrows():
-        with st.expander(f"{p['Nombre']} - {p['Avance']}%"):
-            c1, c2, c3 = st.columns(3)
-            c1.write(f"**Presupuesto:** ${p['Presupuesto']:,}")
-            c2.write(f"**Personal:** {p['Personal']} operarios")
-            c3.write(f"**ART:** {p['ART']}")
-            st.progress(p['Avance'] / 100)
-
-with tab2:
-    with st.form("nuevo_proyecto"):
-        nombre = st.text_input("Nombre del Proyecto")
-        pres = st.number_input("Presupuesto ($)", min_value=0)
-        pers = st.number_input("Cantidad de Personal", min_value=0)
-        art = st.selectbox("Estado ART", ["Al día", "Pendiente", "Vencido"])
-        avance = st.slider("Avance inicial (%)", 0, 100, 0)
+# --- PESTAÑA 2: NÓMINAS & PRESUPUESTOS ---
+with tabs[1]:
+    st.subheader("Control Financiero de Nómina")
+    if st.session_state.nomina:
+        df_data = []
+        for p, d in st.session_state.nomina.items():
+            df_data.append({"Empleado": p, "Cargo": d['cargo'], "Sueldo": d['salario']})
         
-        if st.form_submit_button("Sincronizar con CORE"):
-            nuevo = {"Nombre": nombre, "Presupuesto": pres, "Personal": pers, "ART": art, "Avance": avance}
-            st.session_state.proyectos.append(nuevo)
-            st.rerun()
+        df = pd.DataFrame(df_data)
+        st.table(df)
+        
+        total = df['Sueldo'].sum()
+        st.metric("COSTO MENSUAL TOTAL", f"${total:,.2f}", delta="Costo Operativo")
+    else:
+        st.info("No hay personal registrado para calcular nómina.")
 
+# --- PESTAÑA 3: CARGA DE ARCHIVOS (IMÁGENES/PDF) ---
+with tabs[2]:
+    st.subheader("Subir Contratos / ART / Fotos")
+    if st.session_state.nomina:
+        empleado_sel = st.selectbox("Seleccionar Carpeta de Destino", list(st.session_state.nomina.keys()))
+        archivo = st.file_uploader("Subir Imagen o Documento", type=['png', 'jpg', 'pdf'])
+        
+        if st.button("SUBIR A EXPEDIENTE"):
+            if archivo:
+                # En un app real esto iría a la nube, aquí simulamos la ruta
+                st.session_state.nomina[empleado_sel]['docs'].append(archivo.name)
+                st.success(f"Archivo '{archivo.name}' guardado en la carpeta de {empleado_sel}")
+            else:
+                st.error("Selecciona un archivo primero.")
+    else:
+        st.warning("Debe crear al menos un empleado para subir documentos.")

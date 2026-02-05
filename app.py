@@ -1,27 +1,4 @@
-import streamlit as st
-import pandas as pd
-from datetime import datetime
-import re
 
-# --- CONFIGURACIÓN DE NÚCLEO ---
-EMPRESA = "J&J C.A." 
-st.set_page_config(page_title=f"{EMPRESA} // HUB", layout="wide", initial_sidebar_state="collapsed")
-
-# --- INTERFAZ QUANTUM-TECH (ESTÉTICA SENIOR) ---
-st.markdown(f"""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;500;800&display=swap');
-    
-    .stApp {{ background-color: #030303; font-family: 'JetBrains Mono', monospace; }}
-    
-    /* Branding J&J */
-    .brand-container {{
-        border-left: 4px solid #00fbff;
-        padding-left: 25px;
-        margin-bottom: 40px;
-        background: linear-gradient(90deg, rgba(0,251,255,0.08) 0%, transparent 100%);
-    }}
-    
     .brand-title {{
         color: #00fbff;
         font-size: 2.8rem;

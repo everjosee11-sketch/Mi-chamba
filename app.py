@@ -266,4 +266,3 @@ elif opcion == "📂 Archivos Global":
 # Cerrar conexión al final del script
 conn = get_conn()
 conn.close()
-pandas

@@ -1,96 +1,90 @@
+import streamlit as st
 import json
 import os
+import pandas as pd
 
-class Empresa:
-    def __init__(self, nombre_archivo='datos_empresa.json'):
-        self.nombre_archivo = nombre_archivo
-        self.datos = self.cargar_datos()
+# --- LÓGICA DE DATOS ---
+def cargar_datos():
+    if os.path.exists('datos_empresa.json'):
+        with open('datos_empresa.json', 'r') as f:
+            return json.load(f)
+    return {
+        "inventario": {"Producto A": {"precio": 10.0, "stock": 50}},
+        "ventas": []
+    }
 
-    def cargar_datos(self):
-        """Carga la base de datos desde un archivo JSON."""
-        if os.path.exists(self.nombre_archivo):
-            with open(self.nombre_archivo, 'r') as f:
-                return json.load(f)
-        return {
-            "inventario": {},
-            "clientes": [],
-            "finanzas": {"balance": 0.0, "ventas_totales": 0}
-        }
+def guardar_datos(datos):
+    with open('datos_empresa.json', 'w') as f:
+        json.dump(datos, f, indent=4)
 
-    def guardar_datos(self):
-        """Guarda el estado actual en el archivo JSON."""
-        with open(self.nombre_archivo, 'w') as f:
-            json.dump(self.datos, f, indent=4)
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="Mi Empresa Digital", layout="wide")
+datos = cargar_datos()
 
-    def agregar_producto(self, nombre, precio, stock):
-        self.datos["inventario"][nombre] = {"precio": precio, "stock": stock}
-        self.guardar_datos()
-        print(f"\n✅ Producto '{nombre}' registrado.")
+st.title("📊 Panel de Gestión Empresarial")
 
-    def registrar_venta(self, nombre, cantidad):
-        if nombre in self.datos["inventario"] and self.datos["inventario"][nombre]["stock"] >= cantidad:
-            precio_unitario = self.datos["inventario"][nombre]["precio"]
-            total = precio_unitario * cantidad
-            
-            # Actualizar Stock
-            self.datos["inventario"][nombre]["stock"] -= cantidad
-            # Actualizar Finanzas
-            self.datos["finanzas"]["balance"] += total
-            self.datos["finanzas"]["ventas_totales"] += 1
-            
-            self.guardar_datos()
-            print(f"\n💰 Venta exitosa: {cantidad}x {nombre}. Total: ${total}")
-        else:
-            print("\n❌ Error: Stock insuficiente o producto no existe.")
+# --- BARRA LATERAL (Navegación) ---
+menu = st.sidebar.selectbox("Ir a:", ["Inventario", "Nueva Venta", "Reportes"])
 
-    def reporte_general(self):
-        print("\n" + "="*30)
-        print(f"📊 REPORTE DE GESTIÓN")
-        print("="*30)
-        print(f"💰 Balance en Caja: ${self.datos['finanzas']['balance']}")
-        print(f"📦 Productos en Inventario: {len(self.datos['inventario'])}")
-        print("-" * 30)
-        for prod, info in self.datos["inventario"].items():
-            print(f"- {prod}: ${info['precio']} (Stock: {info['stock']})")
-        print("="*30)
-
-def menu():
-    mi_negocio = Empresa()
+# --- SECCIÓN: INVENTARIO ---
+if menu == "Inventario":
+    st.header("📦 Control de Inventario")
     
-    while True:
-        print("\n--- SISTEMA EMPRESARIAL DIGITAL ---")
-        print("1. Inventario (Agregar/Actualizar)")
-        print("2. Registrar Venta")
-        print("3. Ver Reporte de Empresa")
-        print("4. Salir")
+    with st.form("nuevo_producto"):
+        col1, col2, col3 = st.columns(3)
+        nombre = col1.text_input("Nombre del Producto")
+        precio = col2.number_input("Precio", min_value=0.0)
+        stock = col3.number_input("Stock Inicial", min_value=0)
         
-        opcion = input("Seleccione una opción: ")
+        if st.form_submit_button("Agregar/Actualizar"):
+            datos["inventario"][nombre] = {"precio": precio, "stock": stock}
+            guardar_datos(datos)
+            st.success(f"Producto {nombre} actualizado")
 
-        if opcion == '1':
-            nom = input("Nombre del producto: ")
-            try:
-                pre = float(input("Precio: "))
-                can = int(input("Cantidad: "))
-                mi_negocio.agregar_producto(nom, pre, can)
-            except ValueError:
-                print("Error: Ingrese números válidos para precio y cantidad.")
+    # Mostrar tabla de productos
+    if datos["inventario"]:
+        df_inv = pd.DataFrame.from_dict(datos["inventario"], orient='index')
+        st.table(df_inv)
 
-        elif opcion == '2':
-            nom = input("Producto vendido: ")
-            try:
-                can = int(input("Cantidad: "))
-                mi_negocio.registrar_venta(nom, can)
-            except ValueError:
-                print("Error: Ingrese una cantidad válida.")
-
-        elif opcion == '3':
-            mi_negocio.reporte_general()
-
-        elif opcion == '4':
-            print("Saliendo del sistema...")
-            break
+# --- SECCIÓN: NUEVA VENTA ---
+elif menu == "Nueva Venta":
+    st.header("💰 Registrar Venta")
+    
+    opciones_prod = list(datos["inventario"].keys())
+    seleccion = st.selectbox("Selecciona producto:", opciones_prod)
+    cantidad = st.number_input("Cantidad", min_value=1, step=1)
+    
+    if st.button("Confirmar Venta"):
+        stock_actual = datos["inventario"][seleccion]["stock"]
+        if stock_actual >= cantidad:
+            # Procesar venta
+            datos["inventario"][seleccion]["stock"] -= cantidad
+            total = datos["inventario"][seleccion]["precio"] * cantidad
+            datos["ventas"].append({"producto": seleccion, "cantidad": cantidad, "total": total})
+            
+            guardar_datos(datos)
+            st.balloons()
+            st.success(f"Venta realizada: ${total}")
         else:
-            print("Opción no válida.")
+            st.error("No hay suficiente stock.")
 
-if __name__ == "__main__":
-    menu()
+# --- SECCIÓN: REPORTES ---
+elif menu == "Reportes":
+    st.header("📈 Análisis de Negocio")
+    
+    if datos["ventas"]:
+        df_ventas = pd.DataFrame(datos["ventas"])
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Ventas Totales", f"${df_ventas['total'].sum()}")
+        with col2:
+            st.metric("Productos Vendidos", df_ventas['cantidad'].sum())
+            
+        st.subheader("Histórico de Ventas")
+        st.dataframe(df_ventas)
+        
+        # Gráfico simple
+        st.bar_chart(df_ventas.set_index('producto')['total'])
+    else:
+        st.info("Aún no hay ventas registradas.")
